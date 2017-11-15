@@ -42,6 +42,12 @@ public class MainActivity extends AppCompatActivity {
     private final ArrayList<Float> rollValues = new ArrayList<>();
     private final int ZERO_SPEED = 1500;
 
+
+    private final static int TARGET_HZ = 20;
+
+    private long lastSensorValueTime;
+    private int tmpTimeCount;
+
     private boolean serialPortConnected = false;
 
     private RequestQueue queue;
@@ -82,7 +88,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void writeToArduino(float pitch, float roll, int speed) {
         serialPort.write(String.format("%fP%fR%dT", pitch, roll, speed).getBytes());
-        Log.i(TAG, "Write to Arduino: " + String.format("%fP%fR%dT", pitch, roll, speed));
+        //Log.i(TAG, "Write to Arduino: " + String.format("%fP%fR%dT", pitch, roll, speed));
     }
 
     @Override
@@ -94,12 +100,12 @@ public class MainActivity extends AppCompatActivity {
         ButterKnife.bind(this);
 
 
+        System.currentTimeMillis();
         usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
         registerReceiver(mUsbReceiver, filter);
 
-        UsbAccessory[] accessories = usbManager.getAccessoryList();
         HashMap<String, UsbDevice> devices = usbManager.getDeviceList();
 
         UsbDevice device = devices.get(devices.keySet().toArray()[0]);
@@ -108,16 +114,25 @@ public class MainActivity extends AppCompatActivity {
 
         //connectToUsb();
 
+        lastSensorValueTime = System.currentTimeMillis();
+
         orientationManager = new OrientationManager(this) {
             @Override
             public void sensorValues(float azimuth, float pitch, float roll) {
-                counter = (counter + 1) % DROP_RATE;
-                if (counter != 0) {
+                long now = System.currentTimeMillis();
+                long dt = now - lastSensorValueTime;
+                lastSensorValueTime = now;
+
+                tmpTimeCount += dt;
+
+                if ((1000 / tmpTimeCount) > TARGET_HZ) {
                     azimuthValues.add(azimuth);
                     pitchValues.add(pitch);
                     rollValues.add(roll);
                     return;
                 }
+                tmpTimeCount = 0;
+                Log.i(TAG, "logi stuff");
 
                 float avgAzimuth = getAvg(azimuthValues);
                 float avgPitch = getAvg(pitchValues);
