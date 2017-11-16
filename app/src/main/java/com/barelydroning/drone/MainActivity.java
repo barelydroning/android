@@ -70,6 +70,8 @@ public class MainActivity extends AppCompatActivity {
 
     private UsbSerialDevice serialPort;
 
+    private boolean DEBUG_WITHOUT_SERIAL = true;
+
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
     {
@@ -83,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
     private void writeToArduino(int motorSpeedA, int motorSpeedB, int motorSpeedC, int motorSpeedD, int motorSpeedE, int motorSpeedF) {
         String serialString = String.format("%dA%dB%dC%dD%dE%dFT", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
         String prettyString = String.format("\nMotor A: %d\nMotor B: %d\nMotor C: %d\nMotor D: %d\nMotor E: %d\nMotor F: %d", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
-        serialPort.write(serialString.getBytes());
+        if (!DEBUG_WITHOUT_SERIAL) serialPort.write(serialString.getBytes());
         Log.i(TAG, prettyString);
     }
 
@@ -94,7 +96,7 @@ public class MainActivity extends AppCompatActivity {
     private int motorSpeedE = 1000;
     private int motorSpeedF = 1000;
 
-    private int BASE_SPEED = 1100;
+    private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -112,12 +114,13 @@ public class MainActivity extends AppCompatActivity {
 
         HashMap<String, UsbDevice> devices = usbManager.getDeviceList();
 
-        UsbDevice device = devices.get(devices.keySet().toArray()[0]);
-
-        usbManager.requestPermission(device, mPermissionIntent);
+        if (!DEBUG_WITHOUT_SERIAL) {
+            UsbDevice device = devices.get(devices.keySet().toArray()[0]);
+            usbManager.requestPermission(device, mPermissionIntent);
+        }
 
         int kp = 250;
-        int ki = 20;
+        int ki = 40;
         int kd = 10;
 
         final PID rollPid = new PID(kp, ki, kd);
@@ -157,7 +160,7 @@ public class MainActivity extends AppCompatActivity {
                 int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
                 Log.i(TAG, "Roll pid value is " + rollPidValue);
-                if (serialPortConnected) {
+                if (DEBUG_WITHOUT_SERIAL || serialPortConnected) {
 
                     motorSpeedA = BASE_SPEED + rollPidValue;
                     motorSpeedB = BASE_SPEED + rollPidValue;
