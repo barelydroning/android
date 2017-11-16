@@ -35,12 +35,9 @@ public class MainActivity extends AppCompatActivity {
 
     private final String address = "192.168.0.11";
     private final int port = 5000;
-    private int counter = -1;
-    private final int DROP_RATE = 20;
     private final ArrayList<Float> azimuthValues = new ArrayList<>();
     private final ArrayList<Float> pitchValues = new ArrayList<>();
     private final ArrayList<Float> rollValues = new ArrayList<>();
-    private final int ZERO_SPEED = 1500;
 
 
     private final static int TARGET_HZ = 20;
@@ -49,8 +46,6 @@ public class MainActivity extends AppCompatActivity {
     private int tmpTimeCount;
 
     private boolean serialPortConnected = false;
-
-    private RequestQueue queue;
 
     private UsbManager usbManager;
 
@@ -71,10 +66,9 @@ public class MainActivity extends AppCompatActivity {
         return sum / values.size();
     }
 
-    private UsbDevice device;
     private UsbDeviceConnection connection;
 
-    UsbSerialDevice serialPort;
+    private UsbSerialDevice serialPort;
 
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
@@ -86,16 +80,26 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
-    private void writeToArduino(float pitch, float roll, int speed) {
-        serialPort.write(String.format("%fP%fR%dT", pitch, roll, speed).getBytes());
-        //Log.i(TAG, "Write to Arduino: " + String.format("%fP%fR%dT", pitch, roll, speed));
+    private void writeToArduino(int motorSpeedA, int motorSpeedB, int motorSpeedC, int motorSpeedD, int motorSpeedE, int motorSpeedF) {
+        String serialString = String.format("%dA%dB%dC%dD%dE%dFT", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+        String prettyString = String.format("\nMotor A: %d\nMotor B: %d\nMotor C: %d\nMotor D: %d\nMotor E: %d\nMotor F: %d", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+        serialPort.write(serialString.getBytes());
+        Log.i(TAG, prettyString);
     }
+
+    private int motorSpeedA = 1000;
+    private int motorSpeedB = 1000;
+    private int motorSpeedC = 1000;
+    private int motorSpeedD = 1000;
+    private int motorSpeedE = 1000;
+    private int motorSpeedF = 1000;
+
+    private int BASE_SPEED = 1100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        queue = Volley.newRequestQueue(this);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
@@ -112,7 +116,12 @@ public class MainActivity extends AppCompatActivity {
 
         usbManager.requestPermission(device, mPermissionIntent);
 
-        //connectToUsb();
+        int kp = 250;
+        int ki = 20;
+        int kd = 10;
+
+        final PID rollPid = new PID(kp, ki, kd);
+        final PID pitchPid = new PID(kp, ki, kd);
 
         lastSensorValueTime = System.currentTimeMillis();
 
@@ -125,14 +134,13 @@ public class MainActivity extends AppCompatActivity {
 
                 tmpTimeCount += dt;
 
-                if ((1000 / tmpTimeCount) > TARGET_HZ) {
+                if (tmpTimeCount != 0 && (1000 / tmpTimeCount) > TARGET_HZ) {
                     azimuthValues.add(azimuth);
                     pitchValues.add(pitch);
                     rollValues.add(roll);
                     return;
                 }
                 tmpTimeCount = 0;
-                Log.i(TAG, "logi stuff");
 
                 float avgAzimuth = getAvg(azimuthValues);
                 float avgPitch = getAvg(pitchValues);
@@ -145,10 +153,23 @@ public class MainActivity extends AppCompatActivity {
                 pitchView.setText(String.format("Pitch: %.2f", avgPitch));
                 rollView.setText(String.format("Roll: %.2f", avgRoll));
 
-                if (serialPortConnected) {
-                    writeToArduino(pitch, roll, 1400);
-                }
+                int rollPidValue = (int) rollPid.calculate(0, avgRoll);
+                int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
+                Log.i(TAG, "Roll pid value is " + rollPidValue);
+                if (serialPortConnected) {
+
+                    motorSpeedA = BASE_SPEED + rollPidValue;
+                    motorSpeedB = BASE_SPEED + rollPidValue;
+
+                    motorSpeedD = BASE_SPEED - rollPidValue;
+                    motorSpeedE = BASE_SPEED - rollPidValue;
+
+                    motorSpeedC = BASE_SPEED;
+                    motorSpeedF = BASE_SPEED;
+
+                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+                }
             }
         };
 
@@ -184,14 +205,7 @@ public class MainActivity extends AppCompatActivity {
                                     serialPort.read(mCallback);
 
                                     serialPortConnected = true;
-                                    Log.i("STUFFi", "Serial port connected");
-                                }else
-                                {
-                                    // Serial port could not be opened, maybe an I/O error or it CDC driver was chosen it does not really fit
                                 }
-                            }else
-                            {
-                                // No driver for given device, even generic CDC driver could not be loaded
                             }
                         }
                     }
