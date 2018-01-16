@@ -20,6 +20,9 @@ public class PID {
     private double lastError;
     private long lastCallTime = 0;
 
+    // last output
+    private double[] lastOutput;
+
 
     private double constrain(double value) {
         return Math.max(Math.min(value, outputLimits[1]), outputLimits[0]);
@@ -27,7 +30,7 @@ public class PID {
 
     public PID(double kp, double ki, double kd) {
         setParameters(kp,ki,kd);
-        setOutputLimits(-1000, 1000);
+        setOutputLimits(-50, 50);
         setIntegralLimit((outputLimits[1] - outputLimits[0])/ki);
     }
 
@@ -52,7 +55,7 @@ public class PID {
         double deltaTime = (newTime - lastCallTime) / 1e9;
         double error = targetValue - filteredSensorValue;
 
-        deltaTime = 1;
+        //deltaTime = 1;
 
         // Integral
         integral += 0.5 * (error + lastError) * deltaTime;
@@ -77,6 +80,15 @@ public class PID {
         lastCallTime = newTime;
         lastTargetValue = targetValue;
 
+        lastOutput = new double[] {parameters[0]*error, parameters[1]*integral, parameters[2]*derivative};
         return constrain(output);
+    }
+
+    public double getIntegral(){
+        return this.integral;
+    }
+
+    public double[] getLastOutput() {
+        return  this.lastOutput;
     }
 }

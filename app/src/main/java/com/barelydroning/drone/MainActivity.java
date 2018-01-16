@@ -15,11 +15,18 @@ import android.util.Log;
 import android.view.WindowManager;
 import android.widget.TextView;
 
+import com.android.volley.Request;
 import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
+import com.google.gson.Gson;
 
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -27,7 +34,7 @@ import java.util.HashMap;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements UDPClient.UDPListener {
 
     private OrientationManager orientationManager;
 
@@ -39,8 +46,11 @@ public class MainActivity extends AppCompatActivity {
     private final ArrayList<Float> pitchValues = new ArrayList<>();
     private final ArrayList<Float> rollValues = new ArrayList<>();
 
+    private final String SERVER_IP = "192.168.0.13";
+    private final int PORT = 8080;
 
-    private final static int TARGET_HZ = 20;
+
+    private final static int TARGET_HZ = 300;
 
     private long lastSensorValueTime;
     private int tmpTimeCount;
@@ -48,6 +58,12 @@ public class MainActivity extends AppCompatActivity {
     private boolean serialPortConnected = false;
 
     private UsbManager usbManager;
+
+    private RequestQueue queue;
+
+//    private UDPClient udpClient;
+
+    private UDPCommunicator udpCommunicator;
 
     @BindView(R.id.main_azimuth)
     TextView azimuthView;
@@ -70,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
 
     private UsbSerialDevice serialPort;
 
-    private boolean DEBUG_WITHOUT_SERIAL = true;
+    private boolean DEBUG_WITHOUT_SERIAL = false;
 
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
@@ -84,19 +100,20 @@ public class MainActivity extends AppCompatActivity {
 
     private void writeToArduino(int motorSpeedA, int motorSpeedB, int motorSpeedC, int motorSpeedD, int motorSpeedE, int motorSpeedF) {
         String serialString = String.format("%dA%dB%dC%dD%dE%dFT", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
-        String prettyString = String.format("\nMotor A: %d\nMotor B: %d\nMotor C: %d\nMotor D: %d\nMotor E: %d\nMotor F: %d", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+        String prettyString = String.format("\n\nMotor A: %d\nMotor B: %d\nMotor C: %d\nMotor D: %d\nMotor E: %d\nMotor F: %d\n\n", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+        System.out.println(prettyString);
         if (!DEBUG_WITHOUT_SERIAL) serialPort.write(serialString.getBytes());
-        Log.i(TAG, prettyString);
+        //Log.i(TAG, prettyString);
     }
 
-    private int motorSpeedA = 1000;
-    private int motorSpeedB = 1000;
-    private int motorSpeedC = 1000;
-    private int motorSpeedD = 1000;
-    private int motorSpeedE = 1000;
-    private int motorSpeedF = 1000;
+    private int motorSpeedA = 1100;
+    private int motorSpeedB = 1100;
+    private int motorSpeedC = 1100;
+    private int motorSpeedD = 1100;
+    private int motorSpeedE = 1100;
+    private int motorSpeedF = 1100;
 
-    private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1100;
+    private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -105,8 +122,23 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
 
+        queue = Volley.newRequestQueue(this);
 
-        System.currentTimeMillis();
+        URI uri = null;
+//        try {
+//            uri = new URI("ws://" + SERVER_IP + ":" + PORT);
+//        } catch (URISyntaxException e) {
+//            e.printStackTrace();
+//        }
+//        udpCommunicator = new UDPCommunicator(uri);
+//        udpCommunicator.connect();
+
+        //new TCPClient(this).start(SERVER_IP);
+
+//        udpClient = new UDPClient(this);
+//        udpClient.connect(SERVER_IP, PORT);
+
+
         usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
         PendingIntent mPermissionIntent = PendingIntent.getBroadcast(this, 0, new Intent(ACTION_USB_PERMISSION), 0);
         IntentFilter filter = new IntentFilter(ACTION_USB_PERMISSION);
@@ -119,9 +151,11 @@ public class MainActivity extends AppCompatActivity {
             usbManager.requestPermission(device, mPermissionIntent);
         }
 
-        int kp = 250;
-        int ki = 40;
-        int kd = 10;
+        final Gson gson = new Gson();
+
+        int kp = 600;
+        double ki = 600;
+        double kd = 0;
 
         final PID rollPid = new PID(kp, ki, kd);
         final PID pitchPid = new PID(kp, ki, kd);
@@ -137,7 +171,7 @@ public class MainActivity extends AppCompatActivity {
 
                 tmpTimeCount += dt;
 
-                if (tmpTimeCount != 0 && (1000 / tmpTimeCount) > TARGET_HZ) {
+                if (azimuthValues.isEmpty() || tmpTimeCount == 0 || (1000 / tmpTimeCount) > TARGET_HZ) {
                     azimuthValues.add(azimuth);
                     pitchValues.add(pitch);
                     rollValues.add(roll);
@@ -152,6 +186,8 @@ public class MainActivity extends AppCompatActivity {
                 pitchValues.clear();
                 rollValues.clear();
 
+
+
                 azimuthView.setText(String.format("Azimuth : %.2f", avgAzimuth));
                 pitchView.setText(String.format("Pitch: %.2f", avgPitch));
                 rollView.setText(String.format("Roll: %.2f", avgRoll));
@@ -159,19 +195,45 @@ public class MainActivity extends AppCompatActivity {
                 int rollPidValue = (int) rollPid.calculate(0, avgRoll);
                 int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
-                Log.i(TAG, "Roll pid value is " + rollPidValue);
+                Data data = new Data(avgPitch, avgRoll, avgAzimuth, 0);
+
+//                udpCommunicator.sendMessage(gson.toJson(data));
+//                udpClient.send(gson.toJson(data));
+
+                //Log.i(TAG, "Roll pid value is " + rollPidValue);
                 if (DEBUG_WITHOUT_SERIAL || serialPortConnected) {
 
-                    motorSpeedA = BASE_SPEED + rollPidValue;
-                    motorSpeedB = BASE_SPEED + rollPidValue;
+                    motorSpeedA = BASE_SPEED - pitchPidValue;
+                    motorSpeedC = BASE_SPEED - pitchPidValue;
 
-                    motorSpeedD = BASE_SPEED - rollPidValue;
-                    motorSpeedE = BASE_SPEED - rollPidValue;
+                    motorSpeedD = BASE_SPEED + pitchPidValue;
+                    motorSpeedF = BASE_SPEED + pitchPidValue;
 
-                    motorSpeedC = BASE_SPEED;
-                    motorSpeedF = BASE_SPEED;
+
+                    motorSpeedB = 1000;
+                    motorSpeedE = 1000;
 
                     writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+
+                    double[] lastOutput = pitchPid.getLastOutput();
+
+                    String url = String.format("http://%s:%d?pitch=%f&motorSpeedA=%d&motorSpeedC=%d&motorSpeedD=%d&motorSpeedF=%d&pitchIntegral=%f&pitchP=%f&pitchI=%f&pitchD=%f",
+                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutput[0], lastOutput[1], lastOutput[2]).replace(",", ".");
+                    // Request a string response from the provided URL.
+                    StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+                            new Response.Listener<String>() {
+                                @Override
+                                public void onResponse(String response) {
+                                    Log.d(getClass().getName(), "Success");
+                                }
+                            }, new Response.ErrorListener() {
+                        @Override
+                        public void onErrorResponse(VolleyError error) {
+                            Log.d(getClass().getName(), "Error");
+                        }
+                    });
+                    queue.add(stringRequest);
+
                 }
             }
         };
@@ -220,4 +282,23 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+//    @Override
+//    public void onConnectionEstablished() {
+//        Log.i(TAG, "onConnectionEstablished");
+//    }
+//
+//    @Override
+//    public void onConnectionLost() {
+//        Log.i(TAG, "onConnectionLost");
+//    }
+//
+//    @Override
+//    public void onMessageReceived(String message) {
+//        Log.i(TAG, "onMessageReceived with message: " + message);
+//    }
+
+    @Override
+    public void onMessage() {
+        Log.i(TAG, "onMessage with message TODO");
+    }
 }
