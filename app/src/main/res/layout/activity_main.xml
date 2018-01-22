@@ -34,4 +34,17 @@
         tools:layout_editor_absoluteY="8dp"
         tools:layout_editor_absoluteX="0dp" />
 
+    <TextView
+        android:id="@+id/main_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="TEST"
+        android:textAlignment="center"
+        android:paddingTop="100dp"
+        android:paddingBottom="100dp"
+        android:paddingLeft="10dp"
+        android:paddingRight="10dp"
+        android:textSize="20sp"
+        />
+
 </LinearLayout>

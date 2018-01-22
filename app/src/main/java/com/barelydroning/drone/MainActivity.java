@@ -9,6 +9,7 @@ import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
+import android.os.AsyncTask;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -25,6 +26,9 @@ import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 import com.google.gson.Gson;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -33,6 +37,9 @@ import java.util.HashMap;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import io.socket.client.IO;
+import io.socket.client.Socket;
+import io.socket.emitter.Emitter;
 
 public class MainActivity extends AppCompatActivity implements UDPClient.UDPListener {
 
@@ -74,6 +81,9 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     @BindView(R.id.main_roll)
     TextView rollView;
 
+    @BindView(R.id.main_text)
+    TextView mainText;
+
     private float getAvg(Collection<Float> values) {
         float sum = 0;
         for (Float f : values) {
@@ -86,7 +96,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private UsbSerialDevice serialPort;
 
-    private boolean DEBUG_WITHOUT_SERIAL = false;
+    private boolean DEBUG_WITHOUT_SERIAL = true;
 
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
@@ -106,12 +116,36 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         //Log.i(TAG, prettyString);
     }
 
+    private Emitter.Listener onNewMessage = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            MainActivity.this.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    JSONObject data = (JSONObject) args[0];
+                    String command;
+                    try {
+                        command = data.getString("command");
+                        mainText.setText(command);
+                        Log.i(TAG, command);
+                    } catch (JSONException e) {
+                        Log.e(TAG, e.getMessage());
+                        return;
+                    }
+
+                }
+            });
+        }
+    };
+
     private int motorSpeedA = 1100;
     private int motorSpeedB = 1100;
     private int motorSpeedC = 1100;
     private int motorSpeedD = 1100;
     private int motorSpeedE = 1100;
     private int motorSpeedF = 1100;
+
+    private Socket socket;
 
     private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
 
@@ -121,6 +155,54 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setContentView(R.layout.activity_main);
         ButterKnife.bind(this);
+
+
+        try {
+            socket = IO.socket("http://192.168.0.13:3001");
+
+            socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
+
+
+                @Override
+                public void call(Object... args) {
+                    Log.i(TAG, "SOCKET CONNECTED");
+                    socket.emit("connect_drone");
+                    //socket.disconnect();
+                }
+
+            }).on("command", onNewMessage)
+            .on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
+
+                @Override
+                public void call(Object... args) {
+                    Log.i(TAG, "SOCKET DISCONNECTED");
+                }
+
+            });
+            socket.connect();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        new Emitter.Listener() {
+
+            @Override
+            public void call(Object... args) {
+                Log.i(TAG, "COMMAND RECEIVED");
+
+                JSONObject obj = (JSONObject)args[0];
+
+
+                System.out.println("");
+                System.out.println(obj);
+                System.out.println("");
+                //System.out.println("COMMAND RECEIVED: " + obj.)
+            }
+
+        }
+
+        ;
+
 
         queue = Volley.newRequestQueue(this);
 
@@ -213,26 +295,26 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     motorSpeedB = 1000;
                     motorSpeedE = 1000;
 
-                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+//                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
 
                     double[] lastOutput = pitchPid.getLastOutput();
 
-                    String url = String.format("http://%s:%d?pitch=%f&motorSpeedA=%d&motorSpeedC=%d&motorSpeedD=%d&motorSpeedF=%d&pitchIntegral=%f&pitchP=%f&pitchI=%f&pitchD=%f",
-                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutput[0], lastOutput[1], lastOutput[2]).replace(",", ".");
-                    // Request a string response from the provided URL.
-                    StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
-                            new Response.Listener<String>() {
-                                @Override
-                                public void onResponse(String response) {
-                                    Log.d(getClass().getName(), "Success");
-                                }
-                            }, new Response.ErrorListener() {
-                        @Override
-                        public void onErrorResponse(VolleyError error) {
-                            Log.d(getClass().getName(), "Error");
-                        }
-                    });
-                    queue.add(stringRequest);
+//                    String url = String.format("http://%s:%d?pitch=%f&motorSpeedA=%d&motorSpeedC=%d&motorSpeedD=%d&motorSpeedF=%d&pitchIntegral=%f&pitchP=%f&pitchI=%f&pitchD=%f",
+//                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutput[0], lastOutput[1], lastOutput[2]).replace(",", ".");
+//                    // Request a string response from the provided URL.
+//                    StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
+//                            new Response.Listener<String>() {
+//                                @Override
+//                                public void onResponse(String response) {
+//                                    Log.d(getClass().getName(), "Success");
+//                                }
+//                            }, new Response.ErrorListener() {
+//                        @Override
+//                        public void onErrorResponse(VolleyError error) {
+//                            Log.d(getClass().getName(), "Error");
+//                        }
+//                    });
+//                    queue.add(stringRequest);
 
                 }
             }
@@ -241,7 +323,25 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         orientationManager.register();
     }
 
+    private TCPClient tcpClient;
 
+    public class ConnectTask extends AsyncTask<String, Integer, TCPClient> {
+
+        @Override
+        protected TCPClient doInBackground(String... message) {
+//we create a TCPClient object and
+            tcpClient = new TCPClient(new TCPClient.TCPMessageListener() {
+                @Override
+//here the messageReceived method is implemented
+                public void onMessage(String message) {
+                    Log.i("Debug","Input message: " + message);
+                }
+            });
+            tcpClient.run();
+
+            return null;
+        }
+    }
 
 
     private static final String ACTION_USB_PERMISSION =
