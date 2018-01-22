@@ -62,6 +62,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private long lastSensorValueTime;
     private int tmpTimeCount;
 
+    private String droneId = null;
+
     private boolean serialPortConnected = false;
 
     private UsbManager usbManager;
@@ -149,6 +151,10 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
 
+    private static final int DROP_RATE = 5;
+
+    private int counter = 0;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -170,7 +176,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     //socket.disconnect();
                 }
 
-            }).on("command", onNewMessage)
+            })
+            .on("command", onNewMessage)
             .on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
 
                 @Override
@@ -178,7 +185,16 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     Log.i(TAG, "SOCKET DISCONNECTED");
                 }
 
-            });
+            })
+            .on("socket_id", new Emitter.Listener() {
+
+                @Override
+                public void call(Object... args) {
+                    droneId = (String) args[0];
+                    Log.i(TAG, "DRONE ID IS: " + droneId);
+                }
+            })
+            ;
             socket.connect();
         } catch (Exception e) {
             e.printStackTrace();
@@ -268,6 +284,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 pitchValues.clear();
                 rollValues.clear();
 
+                counter = (counter + 1) % DROP_RATE;
 
 
                 azimuthView.setText(String.format("Azimuth : %.2f", avgAzimuth));
@@ -298,6 +315,32 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 //                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
 
                     double[] lastOutput = pitchPid.getLastOutput();
+
+                    if (droneId != null && counter == 0) {
+                        JSONObject obj = new JSONObject();
+                        try {
+                            obj.put("drone", droneId);
+                            obj.put("pitch", avgPitch);
+                            obj.put("roll", avgRoll);
+                            obj.put("azimuth", avgAzimuth);
+                            obj.put("motorSpeedA", motorSpeedA);
+                            obj.put("motorSpeedB", motorSpeedB);
+                            obj.put("motorSpeedC", motorSpeedC);
+                            obj.put("motorSpeedD", motorSpeedD);
+                            obj.put("motorSpeedE", motorSpeedE);
+                            obj.put("motorSpeedF", motorSpeedF);
+                            obj.put("pitchIntegral", pitchPid.getIntegral());
+                            obj.put("pitchP", lastOutput[0]);
+                            obj.put("pitchI", lastOutput[1]);
+                            obj.put("pitchD", lastOutput[2]);
+
+                            socket.emit("drone_data", obj);
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
 
 //                    String url = String.format("http://%s:%d?pitch=%f&motorSpeedA=%d&motorSpeedC=%d&motorSpeedD=%d&motorSpeedF=%d&pitchIntegral=%f&pitchP=%f&pitchI=%f&pitchD=%f",
 //                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutput[0], lastOutput[1], lastOutput[2]).replace(",", ".");
