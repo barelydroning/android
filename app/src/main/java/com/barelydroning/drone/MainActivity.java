@@ -86,6 +86,46 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     @BindView(R.id.main_text)
     TextView mainText;
 
+    // Pitch PID views
+    @BindView(R.id.pitch_p)
+    TextView pitchP;
+
+    @BindView(R.id.pitch_i)
+    TextView pitchI;
+
+    @BindView(R.id.pitch_d)
+    TextView pitchD;
+
+    // Roll PID views
+    @BindView(R.id.roll_p)
+    TextView rollP;
+
+    @BindView(R.id.roll_i)
+    TextView rollI;
+
+    @BindView(R.id.roll_d)
+    TextView rollD;
+
+    // Motors views
+    @BindView(R.id.motor_a)
+    TextView motorA;
+
+    @BindView(R.id.motor_b)
+    TextView motorB;
+
+    @BindView(R.id.motor_c)
+    TextView motorC;
+
+    @BindView(R.id.motor_d)
+    TextView motorD;
+
+    @BindView(R.id.motor_e)
+    TextView motorE;
+
+    @BindView(R.id.motor_f)
+    TextView motorF;
+
+
     private float getAvg(Collection<Float> values) {
         float sum = 0;
         for (Float f : values) {
@@ -129,6 +169,16 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     try {
                         command = data.getString("command");
                         mainText.setText(command);
+
+                        if (command.equals("kill")) {
+                            motorSpeedA = 1000;
+                            motorSpeedB = 1000;
+                            motorSpeedC = 1000;
+                            motorSpeedD = 1000;
+                            motorSpeedE = 1000;
+                            motorSpeedF = 1000;
+                        }
+
                         Log.i(TAG, command);
                     } catch (JSONException e) {
                         Log.e(TAG, e.getMessage());
@@ -312,9 +362,29 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     motorSpeedB = 1000;
                     motorSpeedE = 1000;
 
+
+
 //                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
 
-                    double[] lastOutput = pitchPid.getLastOutput();
+                    double[] lastOutputPitch = pitchPid.getLastOutput();
+
+                    pitchP.setText(String.format("P: %f", lastOutputPitch[0]));
+                    pitchI.setText(String.format("I: %f", lastOutputPitch[1]));
+                    pitchD.setText(String.format("D: %f", lastOutputPitch[2]));
+
+                    double[] lastOutputRoll = rollPid.getLastOutput();
+
+                    rollP.setText(String.format("P: %f", lastOutputRoll[0]));
+                    rollI.setText(String.format("I: %f", lastOutputRoll[1]));
+                    rollD.setText(String.format("D: %f", lastOutputRoll[2]));
+
+                    motorA.setText(String.format("A: %d", motorSpeedA));
+                    motorB.setText(String.format("B: %d", motorSpeedB));
+                    motorC.setText(String.format("C: %d", motorSpeedC));
+                    motorD.setText(String.format("D: %d", motorSpeedD));
+                    motorE.setText(String.format("E: %d", motorSpeedE));
+                    motorF.setText(String.format("F: %d", motorSpeedF));
+
 
                     if (droneId != null && counter == 0) {
                         JSONObject obj = new JSONObject();
@@ -330,9 +400,9 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                             obj.put("motorSpeedE", motorSpeedE);
                             obj.put("motorSpeedF", motorSpeedF);
                             obj.put("pitchIntegral", pitchPid.getIntegral());
-                            obj.put("pitchP", lastOutput[0]);
-                            obj.put("pitchI", lastOutput[1]);
-                            obj.put("pitchD", lastOutput[2]);
+                            obj.put("pitchP", lastOutputPitch[0]);
+                            obj.put("pitchI", lastOutputPitch[1]);
+                            obj.put("pitchD", lastOutputPitch[2]);
 
                             socket.emit("drone_data", obj);
 
@@ -343,7 +413,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
 //                    String url = String.format("http://%s:%d?pitch=%f&motorSpeedA=%d&motorSpeedC=%d&motorSpeedD=%d&motorSpeedF=%d&pitchIntegral=%f&pitchP=%f&pitchI=%f&pitchD=%f",
-//                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutput[0], lastOutput[1], lastOutput[2]).replace(",", ".");
+//                            address, port, avgPitch, motorSpeedA, motorSpeedC, motorSpeedD, motorSpeedF, pitchPid.getIntegral(), lastOutputPitch[0], lastOutputPitch[1], lastOutputPitch[2]).replace(",", ".");
 //                    // Request a string response from the provided URL.
 //                    StringRequest stringRequest = new StringRequest(Request.Method.GET, url,
 //                            new Response.Listener<String>() {
