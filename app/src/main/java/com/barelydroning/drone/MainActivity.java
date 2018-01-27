@@ -138,7 +138,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private UsbSerialDevice serialPort;
 
-    private boolean DEBUG_WITHOUT_SERIAL = true;
+    private boolean DEBUG_WITHOUT_SERIAL = false;
 
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
@@ -214,7 +214,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
         try {
-            socket = IO.socket("http://192.168.0.13:3001");
+            socket = IO.socket("http://192.168.0.11:3001");
 
             socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
 
@@ -301,8 +301,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
         final Gson gson = new Gson();
 
-        int kp = 600;
-        double ki = 600;
+        int kp = 200;
+        double ki = 50;
         double kd = 0;
 
         final PID rollPid = new PID(kp, ki, kd);
@@ -364,7 +364,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
 
-//                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+                    writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
 
                     double[] lastOutputPitch = pitchPid.getLastOutput();
 
