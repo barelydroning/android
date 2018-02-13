@@ -28,10 +28,14 @@ public class PID {
         return Math.max(Math.min(value, outputLimits[1]), outputLimits[0]);
     }
 
-    public PID(double kp, double ki, double kd) {
+
+
+    public PID(double kp, double ki, double kd, int baseSpeed) {
         setParameters(kp,ki,kd);
-        setOutputLimits(-50, 50);
-        setIntegralLimit((outputLimits[1] - outputLimits[0])/ki);
+        int diff = Math.min(baseSpeed - 1000, 2000 - baseSpeed);
+        setOutputLimits(-diff, diff);
+//        setIntegralLimit((outputLimits[1] - outputLimits[0])/ki);
+        setIntegralLimit(3);
     }
 
     public void setParameters(double kp, double ki, double kd) {

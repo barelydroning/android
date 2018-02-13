@@ -57,7 +57,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private final int PORT = 8080;
 
 
-    private final static int TARGET_HZ = 300;
+    private final static int TARGET_HZ = 200;
 
     private long lastSensorValueTime;
     private int tmpTimeCount;
@@ -88,23 +88,23 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     // Pitch PID views
     @BindView(R.id.pitch_p)
-    TextView pitchP;
+    TextView pitchPView;
 
     @BindView(R.id.pitch_i)
-    TextView pitchI;
+    TextView pitchIView;
 
     @BindView(R.id.pitch_d)
-    TextView pitchD;
+    TextView pitchDView;
 
     // Roll PID views
     @BindView(R.id.roll_p)
-    TextView rollP;
+    TextView rollPView;
 
     @BindView(R.id.roll_i)
-    TextView rollI;
+    TextView rollIView;
 
     @BindView(R.id.roll_d)
-    TextView rollD;
+    TextView rollDView;
 
     // Motors views
     @BindView(R.id.motor_a)
@@ -125,6 +125,23 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     @BindView(R.id.motor_f)
     TextView motorF;
 
+    double pitchP = 200;
+    double pitchI = 20;
+    double pitchD = 80;
+
+    double rollP = 200;
+    double rollI = 20;
+    double rollD = 80;
+
+    private boolean DEBUG_WITHOUT_SERIAL = false;
+
+
+    private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
+
+
+    private PID rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
+    private PID pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+
 
     private float getAvg(Collection<Float> values) {
         float sum = 0;
@@ -138,7 +155,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private UsbSerialDevice serialPort;
 
-    private boolean DEBUG_WITHOUT_SERIAL = false;
 
     // A callback for received data must be defined
     private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
@@ -151,9 +167,9 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     };
 
     private void writeToArduino(int motorSpeedA, int motorSpeedB, int motorSpeedC, int motorSpeedD, int motorSpeedE, int motorSpeedF) {
-        String serialString = String.format("%dA%dB%dC%dD%dE%dFT", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
+        String serialString = String.format("%dA%dB%dC%dDT", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD);
         String prettyString = String.format("\n\nMotor A: %d\nMotor B: %d\nMotor C: %d\nMotor D: %d\nMotor E: %d\nMotor F: %d\n\n", motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
-        System.out.println(prettyString);
+        //System.out.println(prettyString);
         if (!DEBUG_WITHOUT_SERIAL) serialPort.write(serialString.getBytes());
         //Log.i(TAG, prettyString);
     }
@@ -165,21 +181,37 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 @Override
                 public void run() {
                     JSONObject data = (JSONObject) args[0];
-                    String command;
                     try {
-                        command = data.getString("command");
-                        mainText.setText(command);
+                        String commandType = data.getString("type");
+                        mainText.setText(commandType);
 
-                        if (command.equals("kill")) {
-                            motorSpeedA = 1000;
-                            motorSpeedB = 1000;
-                            motorSpeedC = 1000;
-                            motorSpeedD = 1000;
-                            motorSpeedE = 1000;
-                            motorSpeedF = 1000;
+                        if (commandType.equals("kill")) {
+                            BASE_SPEED = 1000;
+                            pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+                            rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
+                        } else if (commandType.equals("pid")) {
+                            String pidType = data.getString("pid_type");
+
+                            if (pidType.equals("pitch")) {
+                                pitchP = data.getDouble("P");
+                                pitchI = data.getDouble("I");
+                                pitchD = data.getDouble("D");
+
+                                pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+                            } else if (pidType.equals("roll")) {
+                                rollP = data.getDouble("P");
+                                rollI = data.getDouble("I");
+                                rollD = data.getDouble("D");
+
+                                rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
+                            }
+                        } else if (commandType.equals("base_speed")) {
+                            BASE_SPEED = data.getInt("speed");
+                            pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+                            rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
                         }
 
-                        Log.i(TAG, command);
+                        Log.i(TAG, commandType);
                     } catch (JSONException e) {
                         Log.e(TAG, e.getMessage());
                         return;
@@ -199,7 +231,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private Socket socket;
 
-    private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
 
     private static final int DROP_RATE = 5;
 
@@ -214,7 +245,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
         try {
-            socket = IO.socket("http://192.168.0.11:3001");
+            socket = IO.socket("http://192.168.0.13:3001");
 
             socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
 
@@ -301,12 +332,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
         final Gson gson = new Gson();
 
-        int kp = 200;
-        double ki = 50;
-        double kd = 0;
 
-        final PID rollPid = new PID(kp, ki, kd);
-        final PID pitchPid = new PID(kp, ki, kd);
 
         lastSensorValueTime = System.currentTimeMillis();
 
@@ -352,31 +378,31 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 //Log.i(TAG, "Roll pid value is " + rollPidValue);
                 if (DEBUG_WITHOUT_SERIAL || serialPortConnected) {
 
-                    motorSpeedA = BASE_SPEED - pitchPidValue;
-                    motorSpeedC = BASE_SPEED - pitchPidValue;
 
-                    motorSpeedD = BASE_SPEED + pitchPidValue;
-                    motorSpeedF = BASE_SPEED + pitchPidValue;
+//                    motorSpeedA = BASE_SPEED - rollPidValue;
+//                    motorSpeedC = BASE_SPEED + rollPidValue;
 
+                    motorSpeedD = 1000;
+                    motorSpeedC = 1000;
 
-                    motorSpeedB = 1000;
-                    motorSpeedE = 1000;
+                    motorSpeedB = BASE_SPEED - pitchPidValue;
+                    motorSpeedA = BASE_SPEED + pitchPidValue;
+                    //motorSpeedA = BASE_SPEED + ((int)(pitchPidValue * 1.1));
 
-
-
+//
                     writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
 
                     double[] lastOutputPitch = pitchPid.getLastOutput();
 
-                    pitchP.setText(String.format("P: %f", lastOutputPitch[0]));
-                    pitchI.setText(String.format("I: %f", lastOutputPitch[1]));
-                    pitchD.setText(String.format("D: %f", lastOutputPitch[2]));
+                    pitchPView.setText(String.format("P: %f", lastOutputPitch[0]));
+                    pitchIView.setText(String.format("I: %f", lastOutputPitch[1]));
+                    pitchDView.setText(String.format("D: %f", lastOutputPitch[2]));
 
                     double[] lastOutputRoll = rollPid.getLastOutput();
 
-                    rollP.setText(String.format("P: %f", lastOutputRoll[0]));
-                    rollI.setText(String.format("I: %f", lastOutputRoll[1]));
-                    rollD.setText(String.format("D: %f", lastOutputRoll[2]));
+                    rollPView.setText(String.format("P: %f", lastOutputRoll[0]));
+                    rollIView.setText(String.format("I: %f", lastOutputRoll[1]));
+                    rollDView.setText(String.format("D: %f", lastOutputRoll[2]));
 
                     motorA.setText(String.format("A: %d", motorSpeedA));
                     motorB.setText(String.format("B: %d", motorSpeedB));
