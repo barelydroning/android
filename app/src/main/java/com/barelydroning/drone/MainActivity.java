@@ -321,7 +321,17 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
                 float avgAzimuth = getAvg(azimuthValues);
                 float avgPitch = getAvg(pitchValues);
-                float avgRoll = getAvg(rollValues);
+                //float avgRoll = getAvg(rollValues);
+                float avgRoll = rollValues.get(rollValues.size() - 1);
+
+
+                float avgDiffRoll = (float) rollValues.stream()
+                        .map(value -> Math.abs(value - avgRoll))
+                        .mapToDouble(Float::doubleValue)
+                        .sum() / rollValues.size();
+
+                float diffRoll = (float) rollValues.stream().reduce(Float.MIN_VALUE, (a, b) -> Float.max(a, b)) - (float) rollValues.stream().reduce(Float.MAX_VALUE, (a, b) -> Float.min(a, b));
+
                 azimuthValues.clear();
                 pitchValues.clear();
                 rollValues.clear();
@@ -408,6 +418,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                             obj.put("rollI", lastOutputRoll[1]);
                             obj.put("rollD", lastOutputRoll[2]);
                             obj.put("rollIntegral", rollPid.getIntegral());
+                            obj.put("avgDiffRoll", avgDiffRoll);
+                            obj.put("diffRoll", diffRoll);
 
                             socket.emit("drone_data", obj);
 
