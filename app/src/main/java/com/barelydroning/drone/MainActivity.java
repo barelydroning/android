@@ -245,7 +245,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
         try {
-            socket = IO.socket("http://192.168.0.13:3001");
+            socket = IO.socket("http://192.168.1.135:3001");
 
             socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
 
@@ -339,6 +339,10 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         orientationManager = new OrientationManager(this) {
             @Override
             public void sensorValues(float azimuth, float pitch, float roll) {
+                azimuth = azimuth * 180 / (float) Math.PI;
+                pitch = pitch * 180 / (float) Math.PI;
+                roll = roll * 180 / (float) Math.PI;
+
                 long now = System.currentTimeMillis();
                 long dt = now - lastSensorValueTime;
                 lastSensorValueTime = now;
@@ -360,6 +364,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 pitchValues.clear();
                 rollValues.clear();
 
+
+
                 counter = (counter + 1) % DROP_RATE;
 
 
@@ -379,15 +385,22 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 if (DEBUG_WITHOUT_SERIAL || serialPortConnected) {
 
 
-//                    motorSpeedA = BASE_SPEED - rollPidValue;
-//                    motorSpeedC = BASE_SPEED + rollPidValue;
+                    motorSpeedB = BASE_SPEED + rollPidValue;
+                    motorSpeedC = BASE_SPEED - rollPidValue;
 
+//                    motorSpeedB = BASE_SPEED - pitchPidValue;
+//                    motorSpeedC = BASE_SPEED + pitchPidValue;
+
+//                    motorSpeedA = 1000;
+//                    motorSpeedD = 1000;
+
+//                    motorSpeedB = BASE_SPEED + rollPidValue;
+//                    motorSpeedC = BASE_SPEED - rollPidValue;
+
+                    motorSpeedA = 1000;
                     motorSpeedD = 1000;
-                    motorSpeedC = 1000;
 
-                    motorSpeedB = BASE_SPEED - pitchPidValue;
-                    motorSpeedA = BASE_SPEED + pitchPidValue;
-                    //motorSpeedA = BASE_SPEED + ((int)(pitchPidValue * 1.1));
+
 
 //
                     writeToArduino(motorSpeedA, motorSpeedB, motorSpeedC, motorSpeedD, motorSpeedE, motorSpeedF);
@@ -429,6 +442,10 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                             obj.put("pitchP", lastOutputPitch[0]);
                             obj.put("pitchI", lastOutputPitch[1]);
                             obj.put("pitchD", lastOutputPitch[2]);
+                            obj.put("rollP", lastOutputRoll[0]);
+                            obj.put("rollI", lastOutputRoll[1]);
+                            obj.put("rollD", lastOutputRoll[2]);
+                            obj.put("rollIntegral", rollPid.getIntegral());
 
                             socket.emit("drone_data", obj);
 
