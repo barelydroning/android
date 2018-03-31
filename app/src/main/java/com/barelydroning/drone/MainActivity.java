@@ -462,27 +462,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         orientationManager.register();
     }
 
-    private TCPClient tcpClient;
-
-    public class ConnectTask extends AsyncTask<String, Integer, TCPClient> {
-
-        @Override
-        protected TCPClient doInBackground(String... message) {
-//we create a TCPClient object and
-            tcpClient = new TCPClient(new TCPClient.TCPMessageListener() {
-                @Override
-//here the messageReceived method is implemented
-                public void onMessage(String message) {
-                    Log.i("Debug","Input message: " + message);
-                }
-            });
-            tcpClient.run();
-
-            return null;
-        }
-    }
-
-
     private static final String ACTION_USB_PERMISSION =
             "com.android.example.USB_PERMISSION";
     private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
