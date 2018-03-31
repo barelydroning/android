@@ -29,9 +29,8 @@ public class PID {
     }
 
 
-
     public PID(double kp, double ki, double kd, int baseSpeed) {
-        setParameters(kp,ki,kd);
+        setParameters(kp, ki, kd);
         int diff = Math.min(baseSpeed - 1000, 2000 - baseSpeed);
         setOutputLimits(-diff, diff);
 //        setIntegralLimit((outputLimits[1] - outputLimits[0])/ki);
@@ -39,15 +38,16 @@ public class PID {
     }
 
     public void setParameters(double kp, double ki, double kd) {
-        parameters = new double[] {kp, ki, kd};
+        parameters = new double[]{kp, ki, kd};
     }
 
     public void setOutputLimits(double lowerBound, double upperBound) {
-        outputLimits = new double[] {lowerBound, upperBound};
+        outputLimits = new double[]{lowerBound, upperBound};
     }
 
     /**
      * It is recommended calling this function after each new value un ki.
+     *
      * @param maxIntegral
      */
     public void setIntegralLimit(double maxIntegral) {
@@ -68,7 +68,7 @@ public class PID {
         //if (lastTargetValue != targetValue) integral = 0;
 
         // Derivative
-        double derivative = (lastTargetValue == targetValue) ? (error - lastError)/deltaTime : 0;
+        double derivative = (lastTargetValue == targetValue) ? (error - lastError) / deltaTime : 0;
 
         // No point in increasing the derivative or the integral if this is the first call
         if (lastCallTime == 0) {
@@ -77,22 +77,22 @@ public class PID {
         }
 
         // Output
-        double output =  parameters[0]*error + parameters[1]*integral + parameters[2]*derivative;
+        double output = parameters[0] * error + parameters[1] * integral + parameters[2] * derivative;
 
         // Save required values for next run
         lastError = error;
         lastCallTime = newTime;
         lastTargetValue = targetValue;
 
-        lastOutput = new double[] {parameters[0]*error, parameters[1]*integral, parameters[2]*derivative};
+        lastOutput = new double[]{parameters[0] * error, parameters[1] * integral, parameters[2] * derivative};
         return constrain(output);
     }
 
-    public double getIntegral(){
+    public double getIntegral() {
         return this.integral;
     }
 
     public double[] getLastOutput() {
-        return  this.lastOutput;
+        return this.lastOutput;
     }
 }

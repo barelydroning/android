@@ -5,22 +5,16 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.hardware.usb.UsbAccessory;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbDeviceConnection;
 import android.hardware.usb.UsbManager;
-import android.os.AsyncTask;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.WindowManager;
 import android.widget.TextView;
 
-import com.android.volley.Request;
 import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
@@ -30,7 +24,6 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -144,11 +137,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
     private float getAvg(Collection<Float> values) {
-        float sum = 0;
-        for (Float f : values) {
-            sum += f;
-        }
-        return sum / values.size();
+        return (float) values.stream().mapToDouble(Float::doubleValue).sum();
     }
 
     private UsbDeviceConnection connection;
@@ -157,13 +146,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
     // A callback for received data must be defined
-    private UsbSerialInterface.UsbReadCallback mCallback = new UsbSerialInterface.UsbReadCallback()
-    {
-        @Override
-        public void onReceivedData(byte[] arg0)
-        {
-            // Code here
-        }
+    private UsbSerialInterface.UsbReadCallback mCallback = arg0 -> {
+        // Code here
     };
 
     private void writeToArduino(int motorSpeedA, int motorSpeedB, int motorSpeedC, int motorSpeedD, int motorSpeedE, int motorSpeedF) {
@@ -177,47 +161,44 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private Emitter.Listener onNewMessage = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
-            MainActivity.this.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    JSONObject data = (JSONObject) args[0];
-                    try {
-                        String commandType = data.getString("type");
-                        mainText.setText(commandType);
+            MainActivity.this.runOnUiThread(() -> {
+                JSONObject data = (JSONObject) args[0];
+                try {
+                    String commandType = data.getString("type");
+                    mainText.setText(commandType);
 
-                        if (commandType.equals("kill")) {
-                            BASE_SPEED = 1000;
+                    if (commandType.equals("kill")) {
+                        BASE_SPEED = 1000;
+                        pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+                        rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
+                    } else if (commandType.equals("pid")) {
+                        String pidType = data.getString("pid_type");
+
+                        if (pidType.equals("pitch")) {
+                            pitchP = data.getDouble("P");
+                            pitchI = data.getDouble("I");
+                            pitchD = data.getDouble("D");
+
                             pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
-                            rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
-                        } else if (commandType.equals("pid")) {
-                            String pidType = data.getString("pid_type");
+                        } else if (pidType.equals("roll")) {
+                            rollP = data.getDouble("P");
+                            rollI = data.getDouble("I");
+                            rollD = data.getDouble("D");
 
-                            if (pidType.equals("pitch")) {
-                                pitchP = data.getDouble("P");
-                                pitchI = data.getDouble("I");
-                                pitchD = data.getDouble("D");
-
-                                pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
-                            } else if (pidType.equals("roll")) {
-                                rollP = data.getDouble("P");
-                                rollI = data.getDouble("I");
-                                rollD = data.getDouble("D");
-
-                                rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
-                            }
-                        } else if (commandType.equals("base_speed")) {
-                            BASE_SPEED = data.getInt("speed");
-                            pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
                             rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
                         }
-
-                        Log.i(TAG, commandType);
-                    } catch (JSONException e) {
-                        Log.e(TAG, e.getMessage());
-                        return;
+                    } else if (commandType.equals("base_speed")) {
+                        BASE_SPEED = data.getInt("speed");
+                        pitchPid = new PID(pitchP, pitchI, pitchD, BASE_SPEED);
+                        rollPid = new PID(rollP, rollI, rollD, BASE_SPEED);
                     }
 
+                    Log.i(TAG, commandType);
+                } catch (JSONException e) {
+                    Log.e(TAG, e.getMessage());
+                    return;
                 }
+
             });
         }
     };
@@ -247,34 +228,17 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         try {
             socket = IO.socket("http://192.168.1.135:3001");
 
-            socket.on(Socket.EVENT_CONNECT, new Emitter.Listener() {
-
-
-                @Override
-                public void call(Object... args) {
-                    Log.i(TAG, "SOCKET CONNECTED");
-                    socket.emit("connect_drone");
-                    //socket.disconnect();
-                }
-
+            socket.on(Socket.EVENT_CONNECT, args -> {
+                Log.i(TAG, "SOCKET CONNECTED");
+                socket.emit("connect_drone");
+                //socket.disconnect();
             })
-            .on("command", onNewMessage)
-            .on(Socket.EVENT_DISCONNECT, new Emitter.Listener() {
-
-                @Override
-                public void call(Object... args) {
-                    Log.i(TAG, "SOCKET DISCONNECTED");
-                }
-
-            })
-            .on("socket_id", new Emitter.Listener() {
-
-                @Override
-                public void call(Object... args) {
-                    droneId = (String) args[0];
-                    Log.i(TAG, "DRONE ID IS: " + droneId);
-                }
-            })
+                    .on("command", onNewMessage)
+                    .on(Socket.EVENT_DISCONNECT, args -> Log.i(TAG, "SOCKET DISCONNECTED"))
+                    .on("socket_id", args -> {
+                        droneId = (String) args[0];
+                        Log.i(TAG, "DRONE ID IS: " + droneId);
+                    })
             ;
             socket.connect();
         } catch (Exception e) {
@@ -287,7 +251,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
             public void call(Object... args) {
                 Log.i(TAG, "COMMAND RECEIVED");
 
-                JSONObject obj = (JSONObject)args[0];
+                JSONObject obj = (JSONObject) args[0];
 
 
                 System.out.println("");
@@ -331,8 +295,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         }
 
         final Gson gson = new Gson();
-
-
 
         lastSensorValueTime = System.currentTimeMillis();
 
@@ -479,27 +441,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         orientationManager.register();
     }
 
-    private TCPClient tcpClient;
-
-    public class ConnectTask extends AsyncTask<String, Integer, TCPClient> {
-
-        @Override
-        protected TCPClient doInBackground(String... message) {
-//we create a TCPClient object and
-            tcpClient = new TCPClient(new TCPClient.TCPMessageListener() {
-                @Override
-//here the messageReceived method is implemented
-                public void onMessage(String message) {
-                    Log.i("Debug","Input message: " + message);
-                }
-            });
-            tcpClient.run();
-
-            return null;
-        }
-    }
-
-
     private static final String ACTION_USB_PERMISSION =
             "com.android.example.USB_PERMISSION";
     private final BroadcastReceiver mUsbReceiver = new BroadcastReceiver() {
@@ -511,13 +452,11 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                     UsbDevice device = (UsbDevice) intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
 
                     if (intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)) {
-                        if(device != null){
+                        if (device != null) {
                             connection = usbManager.openDevice(device);
                             serialPort = UsbSerialDevice.createUsbSerialDevice(device, connection);
-                            if(serialPort != null)
-                            {
-                                if(serialPort.open())
-                                {
+                            if (serialPort != null) {
+                                if (serialPort.open()) {
                                     serialPort.setBaudRate(115200);
                                     serialPort.setDataBits(UsbSerialInterface.DATA_BITS_8);
                                     serialPort.setStopBits(UsbSerialInterface.STOP_BITS_1);
@@ -529,8 +468,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                                 }
                             }
                         }
-                    }
-                    else {
+                    } else {
                         Log.d(TAG, "permission denied for device " + device);
                     }
                 }
