@@ -6,9 +6,10 @@ import java.util.ArrayList;
  * Created by axelri on 2018-03-31.
  */
 
-class RecurrentFilter implements Filter {
+public class RecurrentFilter implements Filter {
     private final double alpha;
     private final ArrayList<Double> x = new ArrayList<>();
+    private final ArrayList<Double> y = new ArrayList<>();
     private Double prevY = null;
 
     public RecurrentFilter(double alpha) {
@@ -17,26 +18,30 @@ class RecurrentFilter implements Filter {
 
     @Override
     public void addCurrentX(double value) {
-        if (x.size() == 2) {
+        if (x.size() == 0) {
+            x.add(value);
+            y.add(value);
+        } else if (x.size() == 1) {
+            x.add(value);
+            y.add(x.get(0) + alpha * y.get(0));
+        } else {
             x.set(0, x.get(1));
             x.set(1, value);
-        } else {
-            x.add(value);
+            y.set(0, y.get(1));
+            y.set(1, x.get(0) + alpha * y.get(0));
         }
     }
 
     @Override
     public double getCurrentY() {
-        if (x.isEmpty()) {
-            throw new RuntimeException("No value go get");
+        if (x.size() == 0) {
+            throw new RuntimeException("No value to get");
         }
 
-        if (x.size() < 2) {
-            return x.get(0);
+        if (y.size() < 2) {
+            return x.get(x.size() - 1);
         }
 
-        double filtered = x.get(0) + alpha * prevY;
-        prevY = filtered;
-        return filtered;
+        return y.get(1);
     }
 }

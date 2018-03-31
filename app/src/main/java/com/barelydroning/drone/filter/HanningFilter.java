@@ -3,7 +3,7 @@ package com.barelydroning.drone.filter;
 import java.util.ArrayList;
 import java.util.List;
 
-class HanningFilter implements Filter {
+public class HanningFilter implements Filter {
     // higher index = newer
     private final List<Double> x = new ArrayList<>();
 

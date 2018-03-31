@@ -16,6 +16,8 @@ import android.widget.TextView;
 
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
+import com.barelydroning.drone.filter.Filter;
+import com.barelydroning.drone.filter.HanningFilter;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 import com.google.gson.Gson;
@@ -45,6 +47,9 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private final ArrayList<Float> azimuthValues = new ArrayList<>();
     private final ArrayList<Float> pitchValues = new ArrayList<>();
     private final ArrayList<Float> rollValues = new ArrayList<>();
+
+    private final Filter gyroFilter = new HanningFilter();
+    private final Filter pFilter = new HanningFilter();
 
     private final String SERVER_IP = "192.168.0.13";
     private final int PORT = 8080;
@@ -301,6 +306,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
         orientationManager = new OrientationManager(this) {
             @Override
             public void sensorValues(float azimuth, float pitch, float roll) {
+                Filter filter = new HanningFilter();
+
                 azimuth = azimuth * 180 / (float) Math.PI;
                 pitch = pitch * 180 / (float) Math.PI;
                 roll = roll * 180 / (float) Math.PI;
@@ -314,7 +321,8 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 if (azimuthValues.isEmpty() || tmpTimeCount == 0 || (1000 / tmpTimeCount) > TARGET_HZ) {
                     azimuthValues.add(azimuth);
                     pitchValues.add(pitch);
-                    rollValues.add(roll);
+                    gyroFilter.addCurrentX(roll);
+//                    rollValues.add(roll);
                     return;
                 }
                 tmpTimeCount = 0;
@@ -334,18 +342,16 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
                 azimuthValues.clear();
                 pitchValues.clear();
-                rollValues.clear();
-
-
+//                rollValues.clear();
 
                 counter = (counter + 1) % DROP_RATE;
-
 
                 azimuthView.setText(String.format("Azimuth : %.2f", avgAzimuth));
                 pitchView.setText(String.format("Pitch: %.2f", avgPitch));
                 rollView.setText(String.format("Roll: %.2f", avgRoll));
 
-                int rollPidValue = (int) rollPid.calculate(0, avgRoll);
+                pFilter.addCurrentX(rollPid.calculate(0, gyroFilter.getCurrentY()));
+                int rollPidValue = (int) pFilter.getCurrentY();
                 int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
                 Data data = new Data(avgPitch, avgRoll, avgAzimuth, 0);
@@ -371,7 +377,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
                     motorSpeedA = 1000;
                     motorSpeedD = 1000;
-
 
 
 //
