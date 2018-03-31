@@ -18,6 +18,7 @@ import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.Volley;
 import com.barelydroning.drone.filter.Filter;
 import com.barelydroning.drone.filter.HanningFilter;
+import com.barelydroning.drone.filter.RecurrentFilter;
 import com.felhr.usbserial.UsbSerialDevice;
 import com.felhr.usbserial.UsbSerialInterface;
 import com.google.gson.Gson;
@@ -48,7 +49,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private final ArrayList<Float> pitchValues = new ArrayList<>();
     private final ArrayList<Float> rollValues = new ArrayList<>();
 
-    private final Filter gyroFilter = new HanningFilter();
+    private final Filter rollFilter = new RecurrentFilter(0.1);
     private final Filter pFilter = new HanningFilter();
 
     private final String SERVER_IP = "192.168.0.13";
@@ -321,16 +322,15 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 if (azimuthValues.isEmpty() || tmpTimeCount == 0 || (1000 / tmpTimeCount) > TARGET_HZ) {
                     azimuthValues.add(azimuth);
                     pitchValues.add(pitch);
-                    gyroFilter.addCurrentX(roll);
-//                    rollValues.add(roll);
+                    rollFilter.addCurrentX(roll);
+                    rollValues.add(roll);
                     return;
                 }
                 tmpTimeCount = 0;
 
                 float avgAzimuth = getAvg(azimuthValues);
                 float avgPitch = getAvg(pitchValues);
-                //float avgRoll = getAvg(rollValues);
-                float avgRoll = rollValues.get(rollValues.size() - 1);
+                float avgRoll = (float) rollFilter.getCurrentY();
 
 
                 float avgDiffRoll = (float) rollValues.stream()
@@ -342,7 +342,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
                 azimuthValues.clear();
                 pitchValues.clear();
-//                rollValues.clear();
+                rollValues.clear();
 
                 counter = (counter + 1) % DROP_RATE;
 
@@ -350,7 +350,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 pitchView.setText(String.format("Pitch: %.2f", avgPitch));
                 rollView.setText(String.format("Roll: %.2f", avgRoll));
 
-                pFilter.addCurrentX(rollPid.calculate(0, gyroFilter.getCurrentY()));
+                pFilter.addCurrentX(rollPid.calculate(0, rollFilter.getCurrentY()));
                 int rollPidValue = (int) pFilter.getCurrentY();
                 int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
