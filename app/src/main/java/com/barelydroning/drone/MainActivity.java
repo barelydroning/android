@@ -43,8 +43,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
     private static final String TAG = "MainActivity";
 
-    private final String address = "192.168.0.11";
-    private final int port = 5000;
     private final ArrayList<Float> azimuthValues = new ArrayList<>();
     private final ArrayList<Float> pitchValues = new ArrayList<>();
     private final ArrayList<Float> rollValues = new ArrayList<>();
@@ -53,7 +51,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private final Filter pFilter = new HanningFilter();
 
     private final String SERVER_IP = "192.168.0.13";
-    private final int PORT = 8080;
+    private final String SERVER_PORT = "3001";
 
 
     private final static int TARGET_HZ = 200;
@@ -68,10 +66,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     private UsbManager usbManager;
 
     private RequestQueue queue;
-
-//    private UDPClient udpClient;
-
-    private UDPCommunicator udpCommunicator;
 
     @BindView(R.id.main_azimuth)
     TextView azimuthView;
@@ -132,7 +126,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
     double rollI = 20;
     double rollD = 80;
 
-    private boolean DEBUG_WITHOUT_SERIAL = false;
+    private boolean DEBUG_WITHOUT_SERIAL = true;
 
 
     private int BASE_SPEED = DEBUG_WITHOUT_SERIAL ? 0 : 1000;
@@ -232,7 +226,7 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
 
 
         try {
-            socket = IO.socket("http://192.168.1.135:3001");
+            socket = IO.socket("http://" + SERVER_IP + ":" + SERVER_PORT);
 
             socket.on(Socket.EVENT_CONNECT, args -> {
                 Log.i(TAG, "SOCKET CONNECTED");
@@ -266,26 +260,10 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 //System.out.println("COMMAND RECEIVED: " + obj.)
             }
 
-        }
-
-        ;
+        };
 
 
         queue = Volley.newRequestQueue(this);
-
-        URI uri = null;
-//        try {
-//            uri = new URI("ws://" + SERVER_IP + ":" + PORT);
-//        } catch (URISyntaxException e) {
-//            e.printStackTrace();
-//        }
-//        udpCommunicator = new UDPCommunicator(uri);
-//        udpCommunicator.connect();
-
-        //new TCPClient(this).start(SERVER_IP);
-
-//        udpClient = new UDPClient(this);
-//        udpClient.connect(SERVER_IP, PORT);
 
 
         usbManager = (UsbManager) getSystemService(Context.USB_SERVICE);
@@ -355,9 +333,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
                 int pitchPidValue = (int) pitchPid.calculate(0, avgPitch);
 
                 Data data = new Data(avgPitch, avgRoll, avgAzimuth, 0);
-
-//                udpCommunicator.sendMessage(gson.toJson(data));
-//                udpClient.send(gson.toJson(data));
 
                 //Log.i(TAG, "Roll pid value is " + rollPidValue);
                 if (DEBUG_WITHOUT_SERIAL || serialPortConnected) {
@@ -492,21 +467,6 @@ public class MainActivity extends AppCompatActivity implements UDPClient.UDPList
             }
         }
     };
-
-//    @Override
-//    public void onConnectionEstablished() {
-//        Log.i(TAG, "onConnectionEstablished");
-//    }
-//
-//    @Override
-//    public void onConnectionLost() {
-//        Log.i(TAG, "onConnectionLost");
-//    }
-//
-//    @Override
-//    public void onMessageReceived(String message) {
-//        Log.i(TAG, "onMessageReceived with message: " + message);
-//    }
 
     @Override
     public void onMessage() {
